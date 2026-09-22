@@ -1,0 +1,140 @@
+CREATE DATABASE zoo_taller;
+USE zoo_taller;
+
+CREATE TABLE cliente(
+		id_cliente INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL,
+    apellido_pa VARCHAR(50) NOT NULL,
+    apellido_ma VARCHAR(50),
+    telefono CHAR(10) NOT NULL,
+    correo VARCHAR(100) NOT NULL UNIQUE,
+    rfc CHAR(13) NOT NULL UNIQUE,    
+    sexo ENUM('Masculino', 'Femenino','Otro') NOT NULL	
+);
+
+CREATE TABLE sucursal(
+    id_suc CHAR(4) PRIMARY KEY,
+    colonia VARCHAR(60) NOT NULL,
+    calle VARCHAR(120) NOT NULL,
+    num_ext VARCHAR(7) NOT NULL,
+    num_tel CHAR(10) NOT NULL UNIQUE
+);
+
+CREATE TABLE vehiculo(
+    id_veh INT AUTO_INCREMENT PRIMARY KEY,
+    marca VARCHAR(30) NOT NULL,
+    modelo VARCHAR(30) NOT NULL,
+    anio YEAR NOT NULL,
+    placas VARCHAR(7) NOT NULL UNIQUE,
+    id_cliente INT NOT NULL,
+    FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente),
+    id_suc CHAR(4) NOT NULL,
+    FOREIGN KEY (id_suc) REFERENCES sucursal(id_suc)
+);
+
+CREATE TABLE mecanico(
+    id_mec INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL,
+    apellido_pa VARCHAR(50) NOT NULL,
+    apellido_ma VARCHAR(50),
+    especialidad VARCHAR(30) NOT NULL,
+    sexo ENUM('Masculino','Femenino','Otro'),
+    id_suc CHAR(4) NOT NULL,
+    FOREIGN KEY (id_suc) REFERENCES sucursal(id_suc)
+);
+
+CREATE TABLE ord_tra(
+    id_ord_tra INT AUTO_INCREMENT PRIMARY KEY,
+    descrip VARCHAR(200) NOT NULL,
+    fecha_ingre DATE NOT NULL,
+    fecha_entrega_est DATE NOT NULL,
+    estado ENUM('ESPERA', 'PROCESO', 'COMPLETADO') NOT NULL,
+    costo DECIMAL(7,2) NOT NULL,
+    id_veh INT NOT NULL,
+    FOREIGN KEY (id_veh) REFERENCES vehiculo(id_veh)
+);
+
+CREATE TABLE mec_ord
+    estatus BOOLEAN NOT NULL,
+    fecha_asig DATE NOT NULL,
+    fecha_comple DATE NOT NULL,
+    id_mec INT NOT NULL,
+    id_ord_tra INT NOT NULL,
+    FOREIGN KEY (id_mec) REFERENCES mecanico(id_mec),
+    FOREIGN KEY (id_ord_tra) REFERENCES ord_tra(id_ord_tra)
+);
+
+CREATE TABLE ord_pago(
+    id_ord_pago INT AUTO_INCREMENT PRIMARY KEY,
+    costo_final DECIMAL(7,2) NOT NULL,
+    estado BOOLEAN NOT NULL,
+    forma_pago ENUM('EFECTIVO','TARJETA','S/PAGO') NOT NULL DEFAULT 'S/PAGO',
+    id_ord_tra INT NOT NULL,
+    FOREIGN KEY (id_ord_tra) REFERENCES ord_tra(id_ord_tra),
+    id_cliente INT NOT NULL,
+    FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente)
+);
+
+CREATE TABLE factura(
+    id_fac INT AUTO_INCREMENT PRIMARY KEY,
+    fecha_emi DATE NOT NULL,
+    rfc CHAR(12) DEFAULT 'ZTH240523L91',
+    rfc_cli CHAR(13) NOT NULL,
+    raz_social VARCHAR(50) DEFAULT 'ZOO Taller de Hojalatería S.A. de C.V',
+    forma_pago ENUM('EFECTIVO','TARJETA') NOT NULL DEFAULT 'EFECTIVO',
+    costo_final DECIMAL(7,2) NOT NULL,
+    id_ord_pago INT NOT NULL,
+    FOREIGN KEY (id_ord_pago) REFERENCES ord_pago(id_ord_pago),
+    id_cliente INT NOT NULL,
+    FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente)
+);
+
+-- Consultas
+-- CLiente y numero de vehiculos que le pertenecen
+SELECT nombre, apellido_pa AS Apellido_1, apellido_ma AS apellido_2, COUNT(id_veh) AS num_vehiculos
+FROM cliente
+JOIN vehiculo USING (id_cliente)
+GROUP BY  nombre, apellido_pa, apellido_ma
+ORDER BY num_vehiculos DESC;
+
+-- Sucursales y los autos que tienes
+SELECT s.id_suc,s.colonia,COUNT(v.id_veh)
+FROM sucursal AS s
+JOIN vehiculo AS v USING(id_suc)
+GROUP BY s.id_suc;
+
+-- Mecánicos y las ordenes ordeenes que estan o no asiganados 
+SELECT m.id_mec, m.nombre, mo.id_ord_tra
+FROM mecanico m
+LEFT JOIN mec_ord AS mo USING(id_mec);
+
+-- Mecanicos y total de ordenes de trabajo
+SELECT id_mec,nombre,apellido_pa,COUNT(id_ord_tra) AS num_ordenes
+FROM mecanico
+JOIN mec_ord USING(id_mec)
+GROUP BY id_mec;
+
+-- Ordenes de trabajo sin mecanicos asignados
+SELECT id_ord_tra,descrip AS descripcion
+FROM ord_tra 
+LEFT JOIN mec_ord using(id_ord_tra)
+WHERE id_mec IS NULL;
+
+-- Ordenes de pago que no han sido pagadas
+SELECT id_ord_pago,costo_final FROM ord_pago WHERE estado = 'S/PAGO';
+
+-- Suma del costo de los autos por cliente
+SELECT id_cliente,nombre,apellido_pa, SUM(costo)
+FROM cliente
+JOIN vehiculo USING(id_cliente)
+JOIN ord_tra USING(id_veh)
+GROUP BY id_cliente;
+
+--Cantidad de vehiculos por sexo
+SELECT sexo, SUM(1)
+FROM cliente
+JOIN vehiculo USING (id_cliente)
+GROUP BY sexo;
+
+
+
